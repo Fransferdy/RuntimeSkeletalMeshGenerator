@@ -428,6 +428,15 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 
 	TArray<FSkinWeightInfo> Weights;
 	Weights.SetNum(Vertices.Num());
+	
+	for (int WeightIdx = 0; WeightIdx < Weights.Num(); WeightIdx++)
+	{
+		for (int InfluenceIdx= 0; InfluenceIdx< MAX_TOTAL_INFLUENCES; ++InfluenceIdx)
+		{
+			Weights[WeightIdx].InfluenceBones[InfluenceIdx] = INDEX_NONE;
+			Weights[WeightIdx].InfluenceWeights[InfluenceIdx] = 0;
+		}
+	}
 
 	for (int32 I = 0; I < Surfaces.Num(); I++)
 	{
