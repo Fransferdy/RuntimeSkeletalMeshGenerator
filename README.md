@@ -1,3 +1,6 @@
+# This Fork fixes a major bug in this plugin
+The original version of the plugin has an issue that causes it to completely trash the model being loaded into UE4/5, this bug is fixed here.
+
 # Runtime Skeletal Mesh Generator for UE4
 Helper to create a SkeletalMeshComponent in UE4 at runtime.
 
