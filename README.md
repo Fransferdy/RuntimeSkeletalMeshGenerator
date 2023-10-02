@@ -1,4 +1,4 @@
-# This Fork fixes 3 major bugs in this plugin
+# This Fork fixes 5 major bugs in this plugin
 The original version of the plugin has an issue that causes it to completely trash the model being loaded into UE4/5, this bug is fixed here.
 And a second issue that cause animations to fail, this bug is fixed here.
 
