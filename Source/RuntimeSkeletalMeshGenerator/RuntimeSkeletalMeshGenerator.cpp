@@ -201,7 +201,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	}
 
 	{
-		const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetNum();
+		const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetRawBoneNum();
 		SkeletalMeshImportData::FBone DefaultBone;
 		DefaultBone.Name = FString(TEXT(""));
 		DefaultBone.Flags = 0;
@@ -509,7 +509,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 #endif
 	}
 
-	const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetNum();
+	const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetRawBoneNum();
 	for (int32 BoneIndex = 0; BoneIndex < BoneNum; BoneIndex++)
 	{
 #if WITH_EDITOR
