@@ -14,6 +14,7 @@
 
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
+#include <algorithm> 
 
 void FRuntimeSkeletalMeshGeneratorModule::StartupModule()
 {
@@ -145,12 +146,21 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	}
 	check(ImportedModelData.PointToRawMap.Num() == Vertices.Num());
 
-	for (int32 I = 0; I < Surfaces.Num(); I++)
+
+	for (auto& s : Surfaces)
 	{
-		SkeletalMeshImportData::FMaterial& Mat = ImportedModelData.Materials.AddDefaulted_GetRef();
-		Mat.Material = SurfacesMaterial[I];
-		Mat.MaterialImportName = SurfacesMaterial[I]->GetFullName();
+		//这里材质的赋值不一定完全正确，不知道如果SurfacesMaterial为空的情况下是否会出错
+		if (s.MaterialIndex >= 0 && s.MaterialIndex < SurfacesMaterial.Num())
+		{
+			if (s.MaterialIndex >= ImportedModelData.Materials.Num())
+			{
+				SkeletalMeshImportData::FMaterial& Mat = ImportedModelData.Materials.AddDefaulted_GetRef();
+				Mat.Material = SurfacesMaterial[s.MaterialIndex];
+				Mat.MaterialImportName = SurfacesMaterial[s.MaterialIndex]->GetFullName();
+			}
+		}
 	}
+
 
 	ImportedModelData.Faces.SetNum(Indices.Num() / 3);
 	for (int32 FaceIndex = 0; FaceIndex < ImportedModelData.Faces.Num(); FaceIndex += 1)
@@ -298,7 +308,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 		RenderSection.NumVertices = Surface.Vertices.Num();
 		RenderSection.BaseIndex = SurfaceIndexOffsets[I];
 		RenderSection.NumTriangles = Surface.Indices.Num() / 3;
-		RenderSection.MaterialIndex = I;
+		RenderSection.MaterialIndex = Surfaces[I].MaterialIndex;
 		RenderSection.bCastShadow = true;
 		RenderSection.bRecomputeTangent = false;
 		RenderSection.MaxBoneInfluences = MaxBoneInfluences;
@@ -333,27 +343,25 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 				MeshSection.SoftVertices[v].Color = Surface.Colors[v];
 			}
 
-			for (int InfluenceIndex = 0; InfluenceIndex < MAX_TOTAL_INFLUENCES; InfluenceIndex += 1)
-			{
-				const TArray<FRawBoneInfluence>& VertInfluences = Surface.BoneInfluences[v];
-				const int32 VertexIndex = SurfaceVertexOffsets[I] + v;
-				if (VertInfluences.Num() <= InfluenceIndex)
-				{
-					MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = 0;
-					MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = INDEX_NONE;
-				}
-				else
-				{
-					const FRawBoneInfluence& VertInfluence = VertInfluences[InfluenceIndex];
-					// Make sure these are the same.
-					check(v == VertInfluence.VertexIndex);
+			const TArray<FRawBoneInfluence>& VertInfluences = Surface.BoneInfluences[v];
+			
+			memset(MeshSection.SoftVertices[v].InfluenceWeights, 0, sizeof(MeshSection.SoftVertices[v].InfluenceWeights));
+			memset(MeshSection.SoftVertices[v].InfluenceBones, 0, sizeof(MeshSection.SoftVertices[v].InfluenceBones));
 
-					// Convert 0.0 - 1.0 range to 0 - 255
-					const uint8 EncodedWeight =
-						FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * 255.f;
-					MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = EncodedWeight;
-					MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? INDEX_NONE : VertInfluence.BoneIndex;
-				}
+			int nMax = std::min(VertInfluences.Num(), MAX_TOTAL_INFLUENCES);
+			for (int InfluenceIndex = 0; InfluenceIndex < nMax; InfluenceIndex += 1)
+			{
+				const int32 VertexIndex = SurfaceVertexOffsets[I] + v;
+				const FRawBoneInfluence& VertInfluence = VertInfluences[InfluenceIndex];
+				// Make sure these are the same.
+				check(v == VertInfluence.VertexIndex);
+
+				// Convert 0.0 - 1.0 range to 0 - 255
+				const uint8 EncodedWeight =
+					FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * 255.f;
+
+				MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = EncodedWeight;
+				MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? 0 : VertInfluence.BoneIndex;
 			}
 		}
 
