@@ -23,9 +23,9 @@
  */
 struct RUNTIMESKELETALMESHGENERATOR_API FRawBoneInfluence
 {
-	float Weight;
-	int32 VertexIndex;
-	int32 BoneIndex;
+	float Weight = 0;
+	int32 VertexIndex = 0;
+	int32 BoneIndex = 0;
 };
 
 /**
@@ -77,7 +77,7 @@ public: // ----------------------------------------------------------------- API
 	 * Update an existing the `SkeletalMeshComponent` for the given surfaces
 	 * optionally supply the transform override
 	 */
-	static void UpdateSkeletalMeshComponent(
+	static USkeletalMesh* UpdateSkeletalMeshComponent(
 		USkeletalMeshComponent* SkeletalMeshComponent,
 		USkeleton* BaseSkeleton,
 		const TArray<FMeshSurface>& Surfaces,
