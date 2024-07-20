@@ -77,7 +77,7 @@ public: // ----------------------------------------------------------------- API
 	 * Update an existing the `SkeletalMeshComponent` for the given surfaces
 	 * optionally supply the transform override
 	 */
-	static USkeletalMesh* UpdateSkeletalMeshComponent(
+	static void UpdateSkeletalMeshComponent(
 		USkeletalMeshComponent* SkeletalMeshComponent,
 		USkeleton* BaseSkeleton,
 		const TArray<FMeshSurface>& Surfaces,
