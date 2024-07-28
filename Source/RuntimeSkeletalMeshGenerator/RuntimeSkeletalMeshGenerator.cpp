@@ -355,23 +355,27 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 				MeshSection.SoftVertices[v].Color = Surface.Colors[v];
 			}
 
-			const TArray<FRawBoneInfluence>& VertInfluences = Surface.BoneInfluences[v];
-			memset(MeshSection.SoftVertices[v].InfluenceWeights, 0, sizeof(MeshSection.SoftVertices[v].InfluenceWeights));
-			memset(MeshSection.SoftVertices[v].InfluenceBones, 0, sizeof(MeshSection.SoftVertices[v].InfluenceBones));
-			int nMax = std::min(VertInfluences.Num(), MAX_TOTAL_INFLUENCES);
-			for (int InfluenceIndex = 0; InfluenceIndex < nMax; InfluenceIndex += 1)
+			for (int InfluenceIndex = 0; InfluenceIndex < MAX_TOTAL_INFLUENCES; InfluenceIndex += 1)
 			{
+				const TArray<FRawBoneInfluence>& VertInfluences = Surface.BoneInfluences[v];
 				const int32 VertexIndex = SurfaceVertexOffsets[I] + v;
-				const FRawBoneInfluence& VertInfluence = VertInfluences[InfluenceIndex];
-				// Make sure these are the same.
-				check(v == VertInfluence.VertexIndex);
+				if (VertInfluences.Num() <= InfluenceIndex)
+				{
+					MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = 0;
+					MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = INDEX_NONE;
+				}
+				else
+				{
+					const FRawBoneInfluence& VertInfluence = VertInfluences[InfluenceIndex];
+					// Make sure these are the same.
+					check(v == VertInfluence.VertexIndex);
 
-				// Convert 0.0 - 1.0 range to 0 - 255
-				const uint8 EncodedWeight =
-					FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * 255.f;
-
-				MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = EncodedWeight;
-				MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? INDEX_NONE : VertInfluence.BoneIndex;
+					// Convert 0.0 - 1.0 range to 0 - 255
+					const uint8 EncodedWeight =
+						FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * 255.f;
+					MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = EncodedWeight;
+					MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? INDEX_NONE : VertInfluence.BoneIndex;
+				}
 			}
 		}
 
