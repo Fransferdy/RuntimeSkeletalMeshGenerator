@@ -342,6 +342,11 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 				MeshSection.SoftVertices[v].Color = Surface.Colors[v];
 			}
 
+			if (214 == v && 2 == I)
+			{
+				int x = 0;
+			}
+
 			const TArray<FRawBoneInfluence>& VertInfluences = Surface.BoneInfluences[v];
 			
 			memset(MeshSection.SoftVertices[v].InfluenceWeights, 0, sizeof(MeshSection.SoftVertices[v].InfluenceWeights));
