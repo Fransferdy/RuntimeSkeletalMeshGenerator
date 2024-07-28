@@ -355,16 +355,9 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 				MeshSection.SoftVertices[v].Color = Surface.Colors[v];
 			}
 
-			if (214 == v && 2 == I)
-			{
-				int x = 0;
-			}
-
 			const TArray<FRawBoneInfluence>& VertInfluences = Surface.BoneInfluences[v];
-
 			memset(MeshSection.SoftVertices[v].InfluenceWeights, 0, sizeof(MeshSection.SoftVertices[v].InfluenceWeights));
 			memset(MeshSection.SoftVertices[v].InfluenceBones, 0, sizeof(MeshSection.SoftVertices[v].InfluenceBones));
-
 			int nMax = std::min(VertInfluences.Num(), MAX_TOTAL_INFLUENCES);
 			for (int InfluenceIndex = 0; InfluenceIndex < nMax; InfluenceIndex += 1)
 			{
@@ -378,7 +371,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 					FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * 255.f;
 
 				MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = EncodedWeight;
-				MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? 0 : VertInfluence.BoneIndex;
+				MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? INDEX_NONE : VertInfluence.BoneIndex;
 			}
 		}
 
