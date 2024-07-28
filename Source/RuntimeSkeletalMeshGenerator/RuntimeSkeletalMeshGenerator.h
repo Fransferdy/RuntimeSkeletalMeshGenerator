@@ -23,9 +23,9 @@
  */
 struct RUNTIMESKELETALMESHGENERATOR_API FRawBoneInfluence
 {
-	float Weight;
-	int32 VertexIndex;
-	int32 BoneIndex;
+	float Weight = 0;
+	int32 VertexIndex = 0;
+	int32 BoneIndex = 0;
 };
 
 /**

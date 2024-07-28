@@ -4,10 +4,10 @@ And a second issue that cause animations to fail, this bug is fixed here.
 
 See a sample on how to use it to create a procedural skeletal mesh and bones here: https://github.com/Fransferdy/creaturecreator/tree/main
 
-# Runtime Skeletal Mesh Generator for UE5.1
+# Runtime Skeletal Mesh Generator for UE5.1 ( does not currently work with Unreal 5.2+)
 Helper to create a SkeletalMeshComponent in UE5.1 at runtime.
 
-This is a UE4 plugin that simplify the process of creating a `USkeletalMeshComponent`, with many surfaces, at runtime.
+This is a UE5 plugin that simplify the process of creating a `USkeletalMeshComponent`, with many surfaces, at runtime.
 You can just pass all the surfaces' data, this library will take care to correctly populate the UE4 buffers, needed to have a fully working `USkeletalMeshComponent`.
 
 ## How to use it

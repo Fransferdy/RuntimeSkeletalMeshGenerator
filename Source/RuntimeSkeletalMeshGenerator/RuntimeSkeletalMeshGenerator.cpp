@@ -16,6 +16,12 @@
 #include "Rendering/SkeletalMeshModel.h"
 #include <algorithm> 
 
+#include "Engine/SkeletalMesh.h"
+#include "Materials/MaterialInstance.h"
+#include "Engine/SkinnedAssetCommon.h"
+#include "Engine/SkeletalMeshLODSettings.h"
+#include "Engine/SkinnedAssetAsyncCompileUtils.h"
+
 void FRuntimeSkeletalMeshGeneratorModule::StartupModule()
 {
 }
@@ -147,12 +153,14 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	}
 	check(ImportedModelData.PointToRawMap.Num() == Vertices.Num());
 
+
 	for (int32 I = 0; I < Surfaces.Num(); I++)
 	{
 		SkeletalMeshImportData::FMaterial& Mat = ImportedModelData.Materials.AddDefaulted_GetRef();
 		Mat.Material = SurfacesMaterial[I];
 		Mat.MaterialImportName = SurfacesMaterial[I]->GetFullName();
 	}
+
 
 	ImportedModelData.Faces.SetNum(Indices.Num() / 3);
 	for (int32 FaceIndex = 0; FaceIndex < ImportedModelData.Faces.Num(); FaceIndex += 1)
@@ -192,7 +200,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 			const int32 VertexIndex = Indices[WedgeIndex];
 
 			ImportedModelData.Wedges[WedgeIndex].VertexIndex = VertexIndex;
-			for (int32 UVIndex = 0; UVIndex < FMath::Min(MAX_TEXCOORDS, MAX_STATIC_TEXCOORDS); UVIndex += 1)
+			for (int32 UVIndex = 0; UVIndex < FMath::Min(static_cast<uint8>(MAX_TEXCOORDS), static_cast<uint8>(MAX_STATIC_TEXCOORDS)); UVIndex += 1)
 			{
 				ImportedModelData.Wedges[WedgeIndex].UVs[UVIndex] = StaticVertices[VertexIndex].UVs[UVIndex];
 			}
@@ -203,7 +211,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	}
 
 	{
-		const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetRawBoneNum();
+		const int32 BoneNum = SkeletalMesh->GetSkeleton()->GetReferenceSkeleton().GetRawBoneNum();
 		SkeletalMeshImportData::FBone DefaultBone;
 		DefaultBone.Name = FString(TEXT(""));
 		DefaultBone.Flags = 0;
@@ -285,8 +293,6 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	ImportedModelData.bHasVertexColors = Surfaces[0].Colors.Num() > 0;;
 	ImportedModelData.bHasNormals = true;
 	ImportedModelData.bHasTangents = true;
-	ImportedModelData.bUseT0AsRefPose = false;
-	ImportedModelData.bDiffPose = false;
 #endif
 
 	LODMeshRenderData->RenderSections.SetNum(Surfaces.Num());
@@ -514,7 +520,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 #endif
 	}
 
-	const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetNum();
+	const int32 BoneNum = SkeletalMesh->GetSkeleton()->GetReferenceSkeleton().GetNum();
 	for (int32 BoneIndex = 0; BoneIndex < BoneNum; BoneIndex++)
 	{
 #if WITH_EDITOR
@@ -543,11 +549,12 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	{
 		SkeletalMesh->GetMaterials().Add(Material);
 	}
-
+#if WITH_EDITOR
 	// Rebuild inverse ref pose matrices.
 	SkeletalMesh->SkelMirrorTable.Empty();
 	SkeletalMesh->SkelMirrorAxis = EAxis::Type::None;
 	SkeletalMesh->SkelMirrorFlipAxis = EAxis::Type::None;
+#endif
 	SkeletalMesh->GetRefBasesInvMatrix().Empty();
 	SkeletalMesh->CalculateInvRefMatrices(); 
 	MeshRenderData->bReadyForStreaming = false;
@@ -558,8 +565,15 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	{
 		SkeletalMesh->NeverStream = false;
 	}
+	if (SkeletalMesh->GetLODSettings() == nullptr)
+	{
+		USkeletalMeshLODSettings* NewLODSettings = NewObject<USkeletalMeshLODSettings>(SkeletalMesh);
+		SkeletalMesh->SetLODSettings(NewLODSettings);
+	}
 
 #if WITH_EDITOR
+	const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = SkeletalMesh->GetLODSettings() != nullptr ? &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex) : nullptr;
+	MeshLodInfo.BuildGUID = MeshLodInfo.ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
 	if (SkeletalMesh->GetLODSettings() != nullptr)
 	{
 		// update mapping information on the class
@@ -570,8 +584,8 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 		const int32 NumSettings = FMath::Min(SkeletalMesh->GetLODSettings()->GetNumberOfSettings(), SkeletalMesh->GetLODNum());
 		checkf(LODIndex < NumSettings, TEXT("Make sure the LODSettings are set for the LODIndex 0."));
 
-		const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex);
-		MeshLodInfo.BuildGUID = MeshLodInfo.ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
+		//const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex);
+		//MeshLodInfo.BuildGUID = MeshLodInfo.ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
 	}
 
 	const FString BuildStringID = SkeletalMesh->GetImportedModel()->LODModels[0].GetLODModelDeriveDataKey();
@@ -580,6 +594,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	SkeletalMesh->SetLODImportedDataVersions(0, ESkeletalMeshGeoImportVersions::LatestVersion, ESkeletalMeshSkinningImportVersions::LatestVersion);
 	SkeletalMesh->SaveLODImportedData(0, ImportedModelData);
 	SkeletalMesh->InvalidateDeriveDataCacheGUID();
+//	SkeletalMesh->SetUseLegacyMeshDerivedDataKey(false);
 #endif
 
 	// Calls InitResources.
@@ -589,7 +604,16 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	// Signals to editor we are done with our changes
 	// This is to prevent the editor variable changes overwriting the import mesh,
 	// if you don't set this random crashes occur.
-	SkeletalMesh->StackPostEditChange();
+
+	// Begin build
+
+	SkeletalMesh->UpdateUVChannelData(true);
+	SkeletalMesh->UpdateGenerateUpToData();
+	SkeletalMesh->Build();
+
+	SkeletalMesh->GetOnMeshChanged().Broadcast();
+
+	SkeletalMesh->PostEditChange();
 #endif
 }
 
