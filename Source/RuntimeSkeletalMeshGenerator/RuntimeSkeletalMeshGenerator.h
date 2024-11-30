@@ -23,9 +23,9 @@
  */
 struct RUNTIMESKELETALMESHGENERATOR_API FRawBoneInfluence
 {
-	float Weight;
-	int32 VertexIndex;
-	int32 BoneIndex;
+	float Weight = 0;
+	int32 VertexIndex = 0;
+	int32 BoneIndex = 0;
 };
 
 /**
@@ -38,7 +38,7 @@ struct RUNTIMESKELETALMESHGENERATOR_API FMeshSurface
 	TArray<bool> FlipBinormalSigns;
 	TArray<FVector> Normals;
 	TArray<FColor> Colors;
-	TArray<TArray<FVector2D>> Uvs;
+	TArray<TArray<FVector2f>> Uvs;
 	TArray<TArray<FRawBoneInfluence>> BoneInfluences;
 	TArray<uint32> Indices;
 };

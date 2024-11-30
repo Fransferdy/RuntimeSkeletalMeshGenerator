@@ -15,6 +15,14 @@
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
 
+#include "Engine/SkeletalMesh.h"
+#include "Materials/MaterialInstance.h"
+#include "Engine/SkinnedAssetCommon.h"
+#include "Engine/SkeletalMeshLODSettings.h"
+#include "Engine/SkinnedAssetAsyncCompileUtils.h"
+
+
+#define MAX_BONE_WEIGHT 65535.0
 void FRuntimeSkeletalMeshGeneratorModule::StartupModule()
 {
 }
@@ -76,7 +84,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 #if WITH_EDITOR
 			// Make sure all the surfaces and all the vertices have the same amount of
 			// UVs.
-			for (const TArray<FVector2D> Uvs : Surface.Uvs)
+			for (const TArray Uvs : Surface.Uvs)
 			{
 				check(UVCount == Uvs.Num());
 			}
@@ -109,7 +117,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 				FMemory::Memcpy(
 					StaticVertices[VerticesOffset + VertexIndex].UVs,
 					Surface.Uvs[VertexIndex].GetData(),
-					sizeof(FVector2D) * UVCount);
+					sizeof(FVector2f) * UVCount);
 
 				VertexSurfaceIndex[VerticesOffset + VertexIndex] = I;
 			}
@@ -146,12 +154,14 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	}
 	check(ImportedModelData.PointToRawMap.Num() == Vertices.Num());
 
+
 	for (int32 I = 0; I < Surfaces.Num(); I++)
 	{
 		SkeletalMeshImportData::FMaterial& Mat = ImportedModelData.Materials.AddDefaulted_GetRef();
 		Mat.Material = SurfacesMaterial[I];
 		Mat.MaterialImportName = SurfacesMaterial[I]->GetFullName();
 	}
+
 
 	ImportedModelData.Faces.SetNum(Indices.Num() / 3);
 	for (int32 FaceIndex = 0; FaceIndex < ImportedModelData.Faces.Num(); FaceIndex += 1)
@@ -191,7 +201,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 			const int32 VertexIndex = Indices[WedgeIndex];
 
 			ImportedModelData.Wedges[WedgeIndex].VertexIndex = VertexIndex;
-			for (int32 UVIndex = 0; UVIndex < FMath::Min(MAX_TEXCOORDS, MAX_STATIC_TEXCOORDS); UVIndex += 1)
+			for (int32 UVIndex = 0; UVIndex < FMath::Min(static_cast<uint8>(MAX_TEXCOORDS), static_cast<uint8>(MAX_STATIC_TEXCOORDS)); UVIndex += 1)
 			{
 				ImportedModelData.Wedges[WedgeIndex].UVs[UVIndex] = StaticVertices[VertexIndex].UVs[UVIndex];
 			}
@@ -202,7 +212,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	}
 
 	{
-		const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetRawBoneNum();
+		const int32 BoneNum = SkeletalMesh->GetSkeleton()->GetReferenceSkeleton().GetRawBoneNum();
 		SkeletalMeshImportData::FBone DefaultBone;
 		DefaultBone.Name = FString(TEXT(""));
 		DefaultBone.Flags = 0;
@@ -284,8 +294,6 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	ImportedModelData.bHasVertexColors = Surfaces[0].Colors.Num() > 0;;
 	ImportedModelData.bHasNormals = true;
 	ImportedModelData.bHasTangents = true;
-	ImportedModelData.bUseT0AsRefPose = false;
-	ImportedModelData.bDiffPose = false;
 #endif
 
 	LODMeshRenderData->RenderSections.SetNum(Surfaces.Num());
@@ -329,7 +337,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 			FMemory::Memcpy(
 				MeshSection.SoftVertices[v].UVs,
 				Surface.Uvs[v].GetData(),
-				sizeof(FVector2D) * UVCount);
+				sizeof(FVector2f) * UVCount);
 			if (Surface.Colors.Num() > v)
 			{
 				MeshSection.SoftVertices[v].Color = Surface.Colors[v];
@@ -350,9 +358,9 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 					// Make sure these are the same.
 					check(v == VertInfluence.VertexIndex);
 
-					// Convert 0.0 - 1.0 range to 0 - 255
+					// Convert 0.0 - 1.0 range to 0 - MAX_BONE_WEIGHT
 					const uint8 EncodedWeight =
-						FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * 255.f;
+						FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * MAX_BONE_WEIGHT;
 					MeshSection.SoftVertices[v].InfluenceWeights[InfluenceIndex] = EncodedWeight;
 					MeshSection.SoftVertices[v].InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? INDEX_NONE : VertInfluence.BoneIndex;
 				}
@@ -475,9 +483,9 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 						continue;
 					}
 
-					// Convert 0.0 - 1.0 range to 0 - 255
+					// Convert 0.0 - 1.0 range to 0 - MAX_BONE_WEIGHT
 					const uint8 EncodedWeight =
-						FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * 255.f;
+						FMath::Clamp(VertInfluence.Weight, 0.f, 1.f) * MAX_BONE_WEIGHT;
 					Weight.InfluenceWeights[InfluenceIndex] = EncodedWeight;
 					Weight.InfluenceBones[InfluenceIndex] = EncodedWeight == 0 ? INDEX_NONE : VertInfluence.BoneIndex;
 
@@ -485,7 +493,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 					if (Weight.InfluenceBones[InfluenceIndex] != INDEX_NONE)
 					{
 						SkeletalMeshImportData::FRawBoneInfluence& Influence = ImportedModelData.Influences.AddDefaulted_GetRef();
-						Influence.Weight = FMath::Clamp(static_cast<float>(Weight.InfluenceWeights[InfluenceIndex]) / 255.0, 0.0, 1.0);
+						Influence.Weight = FMath::Clamp(static_cast<float>(Weight.InfluenceWeights[InfluenceIndex]) / MAX_BONE_WEIGHT, 0.0, 1.0);
 						Influence.BoneIndex = Weight.InfluenceBones[InfluenceIndex];
 						Influence.VertexIndex = VertexIndex;
 					}
@@ -515,7 +523,7 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 #endif
 	}
 
-	const int32 BoneNum = SkeletalMesh->Skeleton->GetReferenceSkeleton().GetNum();
+	const int32 BoneNum = SkeletalMesh->GetSkeleton()->GetReferenceSkeleton().GetNum();
 	for (int32 BoneIndex = 0; BoneIndex < BoneNum; BoneIndex++)
 	{
 #if WITH_EDITOR
@@ -544,11 +552,12 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	{
 		SkeletalMesh->GetMaterials().Add(Material);
 	}
-
+#if WITH_EDITOR
 	// Rebuild inverse ref pose matrices.
 	SkeletalMesh->SkelMirrorTable.Empty();
 	SkeletalMesh->SkelMirrorAxis = EAxis::Type::None;
 	SkeletalMesh->SkelMirrorFlipAxis = EAxis::Type::None;
+#endif
 	SkeletalMesh->GetRefBasesInvMatrix().Empty();
 	SkeletalMesh->CalculateInvRefMatrices(); 
 	MeshRenderData->bReadyForStreaming = false;
@@ -559,8 +568,15 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	{
 		SkeletalMesh->NeverStream = false;
 	}
+	if (SkeletalMesh->GetLODSettings() == nullptr)
+	{
+		USkeletalMeshLODSettings* NewLODSettings = NewObject<USkeletalMeshLODSettings>(SkeletalMesh);
+		SkeletalMesh->SetLODSettings(NewLODSettings);
+	}
 
 #if WITH_EDITOR
+	const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = SkeletalMesh->GetLODSettings() != nullptr ? &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex) : nullptr;
+	MeshLodInfo.BuildGUID = MeshLodInfo.ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
 	if (SkeletalMesh->GetLODSettings() != nullptr)
 	{
 		// update mapping information on the class
@@ -571,16 +587,21 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 		const int32 NumSettings = FMath::Min(SkeletalMesh->GetLODSettings()->GetNumberOfSettings(), SkeletalMesh->GetLODNum());
 		checkf(LODIndex < NumSettings, TEXT("Make sure the LODSettings are set for the LODIndex 0."));
 
-		const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex);
-		MeshLodInfo.BuildGUID = MeshLodInfo.ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
+		//const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = &SkeletalMesh->GetLODSettings()->GetSettingsForLODLevel(LODIndex);
+		//MeshLodInfo.BuildGUID = MeshLodInfo.ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
 	}
 
 	const FString BuildStringID = SkeletalMesh->GetImportedModel()->LODModels[0].GetLODModelDeriveDataKey();
 	SkeletalMesh->GetImportedModel()->LODModels[0].BuildStringID = BuildStringID;
 
-	SkeletalMesh->SetLODImportedDataVersions(0, ESkeletalMeshGeoImportVersions::LatestVersion, ESkeletalMeshSkinningImportVersions::LatestVersion);
-	SkeletalMesh->SaveLODImportedData(0, ImportedModelData);
+	//SkeletalMesh->SetLODImportedDataVersions(0, ESkeletalMeshGeoImportVersions::LatestVersion, ESkeletalMeshSkinningImportVersions::LatestVersion);
+	//SkeletalMesh->SaveLODImportedData(0, ImportedModelData);
+	USkeletalMesh::FCommitMeshDescriptionParams commitParams;
+	commitParams.bForceUpdate = true;
+	commitParams.bMarkPackageDirty = true;
+	SkeletalMesh->CommitMeshDescription(0, commitParams);
 	SkeletalMesh->InvalidateDeriveDataCacheGUID();
+//	SkeletalMesh->SetUseLegacyMeshDerivedDataKey(false);
 #endif
 
 	// Calls InitResources.
@@ -590,7 +611,16 @@ void FRuntimeSkeletalMeshGenerator::GenerateSkeletalMesh(
 	// Signals to editor we are done with our changes
 	// This is to prevent the editor variable changes overwriting the import mesh,
 	// if you don't set this random crashes occur.
-	SkeletalMesh->StackPostEditChange();
+
+	// Begin build
+
+	SkeletalMesh->UpdateUVChannelData(true);
+	SkeletalMesh->UpdateGenerateUpToData();
+	SkeletalMesh->Build();
+
+	SkeletalMesh->GetOnMeshChanged().Broadcast();
+
+	SkeletalMesh->PostEditChange();
 #endif
 }
 
@@ -738,7 +768,7 @@ bool FRuntimeSkeletalMeshGenerator::DecomposeSkeletalMesh(
 			Surface.Uvs[i].SetNum(RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords());
 			for (uint32 UVIndex = 0; UVIndex < RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords(); UVIndex += 1)
 			{
-				Surface.Uvs[i][UVIndex] = FVector2d(RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetVertexUV(VertexIndex, UVIndex));
+				Surface.Uvs[i][UVIndex] = RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetVertexUV(VertexIndex, UVIndex);
 			}
 
 			if (VertexIndex < RenderData.StaticVertexBuffers.ColorVertexBuffer.GetNumVertices())
@@ -759,7 +789,7 @@ bool FRuntimeSkeletalMeshGenerator::DecomposeSkeletalMesh(
 				Surface.BoneInfluences[i][BoneInfluenceIndex].BoneIndex =
 					RenderSection.BoneMap[RenderData.SkinWeightVertexBuffer.GetBoneIndex(VertexIndex, BoneInfluenceIndex)];
 				Surface.BoneInfluences[i][BoneInfluenceIndex].Weight =
-					FMath::Clamp(static_cast<float>(RenderData.SkinWeightVertexBuffer.GetBoneWeight(VertexIndex, BoneInfluenceIndex)) / 255.0, 0.0, 1.0);
+					FMath::Clamp(static_cast<float>(RenderData.SkinWeightVertexBuffer.GetBoneWeight(VertexIndex, BoneInfluenceIndex)) / MAX_BONE_WEIGHT, 0.0, 1.0);
 			}
 		}
 
